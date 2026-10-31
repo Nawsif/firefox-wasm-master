@@ -1,0 +1,58 @@
+
+name: Build Firefox WASM
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+
+    steps:
+      - name: Checkout project
+        uses: actions/checkout@v4
+
+      - name: Install Linux dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential git python3 \
+            libpulse-dev rsync zstd \
+            pkg-config curl
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Set up pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@9.12.0 --activate
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.95.0"
+          targets: wasm32-unknown-emscripten
+          components: rust-src
+
+      - name: Install Emscripten
+        run: make emsdk
+
+      - name: Activate Emscripten and build
+        run: |
+          source emsdk/emsdk_env.sh
+          make web
+          make chrome-assets
+
+      - name: Upload Firefox WASM
+        uses: actions/upload-artifact@v4
+        with:
+          name: firefox-wasm-build
+          path: |
+            gecko.js/dist/
+            gecko.js/wasm/gecko.*
+            demo/chrome/public/
+          if-no-files-found: error
